@@ -1,0 +1,178 @@
+#full data 
+import numpy as np
+import pandas as pd
+from keras.datasets import reuters
+from tensorflow.keras.preprocessing.text import Tokenizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+
+# Load the Reuters dataset
+(train_data, train_labels), (test_data, test_labels) = reuters.load_data(
+    path="reuters.npz",
+    num_words=None,
+    skip_top=0,
+    maxlen=None,
+    test_split=0.2,
+    seed=113,
+    start_char=1,
+    oov_char=2,
+    index_from=3
+)
+
+# Retrieve the word index file mapping words to indices
+word_index = reuters.get_word_index()
+
+# Reverse word index to decode reviews back to text
+index_to_word = {value + 3: key for key, value in word_index.items()}
+index_to_word[0] = '<pad>'
+index_to_word[1] = '<sos>'
+index_to_word[2] = '<oov>'
+
+# Decode the train and test data
+train_texts = [' '.join(index_to_word.get(i, '?') for i in train_sequence) for train_sequence in train_data]
+test_texts = [' '.join(index_to_word.get(i, '?') for i in test_sequence) for test_sequence in test_data]
+
+# Define positive and negative words for financial texts (expand this list based on your needs)
+positive_words = ['profitable', 'gains', 'growth', 'bullish', 'upswing', 'rally', 'exceed']
+negative_words = ['losses', 'decline', 'bearish', 'downturn', 'fall', 'dropped', 'slump']
+
+# Function to determine sentiment
+def determine_sentiment(text):
+    text = text.lower()
+    if any(word in text for word in positive_words):
+        return 'positive'
+    elif any(word in text for word in negative_words):
+        return 'negative'
+    else:
+        return 'neutral'
+
+# Convert train and test data into DataFrame
+train_df = pd.DataFrame({'text': train_texts, 'label': train_labels})
+test_df = pd.DataFrame({'text': test_texts, 'label': test_labels})
+
+# Apply sentiment determination
+train_df['sentiment'] = train_df['text'].apply(determine_sentiment)
+test_df['sentiment'] = test_df['text'].apply(determine_sentiment)
+
+# Use TfidfVectorizer and Logistic Regression
+tfidf = TfidfVectorizer(strip_accents=None, lowercase=False, preprocessor=None)
+param_grid = {
+    'vect__ngram_range': [(1, 1), (1, 2)],
+    'vect__stop_words': [None],
+    'vect__tokenizer': [None],
+    'clf__penalty': ['l1', 'l2'],
+    'clf__C': [1.0, 10.0, 100.0]
+}
+
+pipeline = Pipeline([
+    ('vect', tfidf),
+    ('clf', LogisticRegression(random_state=0, solver='liblinear'))
+])
+
+gs = GridSearchCV(pipeline, param_grid, scoring='accuracy', cv=5, verbose=2, n_jobs=-1)
+gs.fit(train_df['text'], train_df['sentiment'])
+
+# Output best score and parameters
+print("Best score: ", gs.best_score_)
+print("Best parameters: ", gs.best_params_)
+
+# Evaluate on the test set
+test_score = gs.score(test_df['text'], test_df['sentiment'])
+print("Test accuracy: ", test_score)
+
+
+#using 10% of data, runs faster 
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from keras.datasets import reuters
+from tensorflow.keras.preprocessing.text import Tokenizer
+
+# Load the Reuters dataset
+(train_data, train_labels), (test_data, test_labels) = reuters.load_data(
+    path="reuters.npz",
+    num_words=None,
+    skip_top=0,
+    maxlen=None,
+    test_split=0.2,
+    seed=113,
+    start_char=1,
+    oov_char=2,
+    index_from=3
+)
+
+# Retrieve the word index file mapping words to indices
+word_index = reuters.get_word_index()
+
+# Reverse word index to decode reviews back to text
+index_to_word = {value + 3: key for key, value in word_index.items()}
+index_to_word[0] = '<pad>'
+index_to_word[1] = '<sos>'
+index_to_word[2] = '<oov>'
+
+# Decode the train and test data
+train_texts = [' '.join(index_to_word.get(i, '?') for i in train_sequence) for train_sequence in train_data]
+test_texts = [' '.join(index_to_word.get(i, '?') for i in test_sequence) for test_sequence in test_data]
+
+# Define positive and negative words for financial texts
+positive_words = [
+    'profitable', 'gains', 'growth', 'bullish', 'upswing', 'rally', 'exceed',
+    'outperform', 'robust', 'success', 'advantageous', 'beneficial', 'boom',
+    'thrive', 'prosperous', 'dividend'
+]
+
+negative_words = [
+    'losses', 'decline', 'bearish', 'downturn', 'fall', 'dropped', 'slump',
+    'worsened', 'risky', 'problem', 'deficit', 'debt', 'crisis', 'collapse',
+    'detrimental', 'fail'
+]
+
+# Function to determine sentiment
+def determine_sentiment(text):
+    text = text.lower()
+    if any(word in text for word in positive_words):
+        return 'positive'
+    elif any(word in text for word in negative_words):
+        return 'negative'
+    else:
+        return 'neutral'
+
+# Convert train and test data into DataFrame
+train_df = pd.DataFrame({'text': train_texts})
+test_df = pd.DataFrame({'text': test_texts})
+
+# Apply sentiment determination
+train_df['sentiment'] = train_df['text'].apply(determine_sentiment)
+test_df['sentiment'] = test_df['text'].apply(determine_sentiment)
+
+# Sample data for faster execution
+train_df_sample = train_df.sample(frac=0.1, random_state=42)
+test_df_sample = test_df.sample(frac=0.1, random_state=42)
+
+# Simplified parameter grid
+param_grid = {
+    'vect__ngram_range': [(1, 1)],
+    'vect__stop_words': [None],
+    'clf__penalty': ['l2'],
+    'clf__C': [1.0, 10.0]
+}
+
+pipeline = Pipeline([
+    ('vect', TfidfVectorizer(strip_accents=None, lowercase=False, preprocessor=None)),
+    ('clf', LogisticRegression(random_state=0, solver='saga', max_iter=100))
+])
+
+gs = GridSearchCV(pipeline, param_grid, scoring='accuracy', cv=3, verbose=2, n_jobs=-1)
+gs.fit(train_df_sample['text'], train_df_sample['sentiment'])
+
+# Output best score and parameters
+print("Best score: ", gs.best_score_)
+print("Best parameters: ", gs.best_params_)
+
+# Evaluate on the test set
+test_score = gs.score(test_df_sample['text'], test_df_sample['sentiment'])
+print("Test accuracy: ", test_score)
